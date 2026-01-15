@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanzas Master V8 - Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; scroll-behavior: smooth; }
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
+        .tab-active { border-bottom: 4px solid #4f46e5; color: #4f46e5; font-weight: 800; }
+        .toast { transition: all 0.3s ease; transform: translateY(100px); opacity: 0; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body class="pb-20">
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2"></div>
+
+    <header class="bg-slate-900 text-white p-5 shadow-xl sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-xl font-black tracking-tighter italic uppercase">Finanzas <span class="text-indigo-400">V8 PRO</span></h1>
+
+            <div class="flex items-center gap-4 bg-slate-800 p-2 px-4 rounded-2xl border border-slate-700">
+                <div class="text-right">
+                    <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Tasa (1$ = Bs)</p>
+                    <input type="number" id="exchangeRate" value="45.00" step="0.01" class="bg-transparent text-lg font-black text-white w-20 outline-none border-b border-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <label class="cursor-pointer bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl font-bold text-[10px] transition-all flex items-center shadow-lg">
+                    IMPORTAR <input type="file" id="importFile" class="hidden" accept=".csv">
+                </label>
+                <button id="btnExport" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl font-bold text-[10px] transition-all shadow-lg">EXPORTAR</button>
+                <button id="btnToggleCharts" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl font-bold text-[10px] transition-all shadow-lg">GRÁFICOS</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
+                <p class="text-indigo-300 text-[10px] font-black uppercase tracking-[0.3em]">Patrimonio Neto Total (USD)</p>
+                <div class="flex flex-col md:flex-row md:items-end gap-3 mt-2">
+                    <h2 id="saldoNetoUSD" class="text-5xl font-black tracking-tighter">$ 0.00</h2>
+                    <h3 id="saldoNetoBS" class="text-2xl font-bold text-slate-500 mb-1">Bs 0,00</h3>
+                </div>
+            </div>
+            <div id="bankSaldos" class="bg-white rounded-[2.5rem] p-6 card-shadow border border-slate-100 space-y-3"></div>
+        </div>
+
+        <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden border border-slate-100">
+            <div class="flex flex-wrap bg-slate-50 border-b" id="tabGroup">
+                <button data-cat="ingresos" class="flex-1 py-4 text-[9px] uppercase tracking-[0.2em] tab-active">Ingreso</button>
+                <button data-cat="egresos" class="flex-1 py-4 text-[9px] uppercase tracking-[0.2em] text-slate-400">Egreso</button>
+                <button data-cat="cobrar" class="flex-1 py-4 text-[9px] uppercase tracking-[0.2em] text-slate-400">Cobrar</button>
+                <button data-cat="pagar" class="flex-1 py-4 text-[9px] uppercase tracking-[0.2em] text-slate-400">Pagar</button>
+            </div>
+            <div class="p-6">
+                <form id="financeForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="date" id="inputDate" required class="p-3 bg-slate-50 rounded-xl text-sm border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="inputDesc" placeholder="Descripción (Sin símbolos)" required class="p-3 bg-slate-50 rounded-xl text-sm border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500">
+                    <input type="number" id="inputAmount" step="0.01" placeholder="Monto $" required class="p-3 bg-slate-50 rounded-xl text-sm font-bold text-indigo-600 border-none ring-1 ring-slate-200">
+                    <select id="inputAcc" class="p-3 bg-slate-50 rounded-xl text-sm font-bold text-slate-600 border-none ring-1 ring-slate-200">
+                        <option value="banco1">Banesco</option><option value="banco2">BNC</option><option value="banco3">Bancaribe</option><option value="caja">Caja</option>
+                    </select>
+                    <button type="submit" class="md:col-span-4 bg-slate-900 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-widest hover:bg-black transition-all">Guardar Movimiento (Enter)</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-[2.5rem] p-6 card-shadow border border-slate-100">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Historial de Transacciones</h3>
+                <div class="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    <input type="date" id="filterStart" class="bg-transparent text-[10px] font-bold outline-none">
+                    <span class="text-slate-300">al</span>
+                    <input type="date" id="filterEnd" class="bg-transparent text-[10px] font-bold outline-none">
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="text-[9px] font-black text-slate-400 uppercase border-b border-slate-50">
+                        <tr><th class="px-4 py-3">Fecha</th><th class="px-4 py-3">Cuenta</th><th class="px-4 py-3">Concepto</th><th class="px-4 py-3 text-right">$ USD</th><th class="px-4 py-3 text-right">Bs</th><th class="px-4 py-3 text-right">X</th></tr>
+                    </thead>
+                    <tbody id="transactionList" class="divide-y divide-slate-50"></tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-center items-center gap-4 mt-6">
+                <button id="prevPage" class="p-2 px-4 bg-slate-100 rounded-lg text-[10px] font-black hover:bg-slate-200 disabled:opacity-30">ANT</button>
+                <span id="pageIndicator" class="text-[10px] font-bold text-slate-500">Página 1</span>
+                <button id="nextPage" class="p-2 px-4 bg-slate-100 rounded-lg text-[10px] font-black hover:bg-slate-200 disabled:opacity-30">SIG</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /** * MÓDULO: DATABASE (database.js)
+         * Manejo seguro de LocalStorage y validación
+         */
+        const DB = {
+            key: 'finanzas_v8_pro_data',
+            rateKey: 'finanzas_v8_pro_rate',
+            
+            save(data) {
+                try {
+                    localStorage.setItem(this.key, JSON.stringify(data));
+                } catch (e) {
+                    UI.notify("Error de almacenamiento: Espacio insuficiente", "error");
+                }
+            },
+            
+            load() {
+                const data = localStorage.getItem(this.key);
+                return data ? JSON.parse(data) : { ingresos: [], egresos: [], cobrar: [], pagar: [], goals: [] };
+            },
+
+            sanitize(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+
+            isValid(formData) {
+                if (!formData.desc || formData.desc.trim().length < 3) throw "Descripción muy corta";
+                if (isNaN(formData.amount) || formData.amount <= 0) throw "Monto debe ser mayor a 0";
+                if (!formData.date) throw "Fecha inválida";
+                return true;
+            }
+        };
+
+        /**
+         * MÓDULO: UI CONTROLLER (uiController.js)
+         */
+        const UI = {
+            currentPage: 1,
+            itemsPerPage: 10,
+            currentCat: 'ingresos',
+            
+            notify(msg, type = "success") {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                const bgColor = type === "success" ? "bg-emerald-500" : "bg-rose-500";
+                toast.className = `${bgColor} text-white px-6 py-3 rounded-2xl font-bold text-xs shadow-xl toast show`;
+                toast.innerText = msg;
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            },
+
+            formatUSD: (n) => "$" + parseFloat(n).toLocaleString('en-US', {minimumFractionDigits: 2}),
+            formatBS: (n, rate) => "Bs " + (n * rate).toLocaleString('es-VE', {minimumFractionDigits: 2}),
+
+            renderAll(data, rate) {
+                this.renderDashboard(data, rate);
+                this.renderTable(data, rate);
+            },
+
+            renderDashboard(data, rate) {
+                const sum = (arr) => arr.reduce((a, b) => a + b.amount, 0);
+                const getBal = (id) => data.ingresos.filter(i => i.acc === id).reduce((a,b) => a + b.amount, 0) - data.egresos.filter(i => i.acc === id).reduce((a,b) => a + b.amount, 0);
+                
+                const netoUSD = (getBal('banco1')+getBal('banco2')+getBal('banco3')+getBal('caja')) + sum(data.cobrar) - sum(data.pagar);
+                
+                document.getElementById('saldoNetoUSD').innerText = this.formatUSD(netoUSD);
+                document.getElementById('saldoNetoBS').innerText = this.formatBS(netoUSD, rate);
+
+                const bankNames = { banco1: 'Banesco', banco2: 'BNC', banco3: 'Bancaribe', caja: 'Caja' };
+                const colors = { banco1: '#00a859', banco2: '#002e5f', banco3: '#00afca', caja: '#64748b' };
+                
+                const container = document.getElementById('bankSaldos');
+                container.innerHTML = '<h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Saldos Disponibles</h3>';
+                Object.keys(bankNames).forEach(id => {
+                    container.innerHTML += `
+                        <div class="flex justify-between items-center p-2 bg-slate-50 rounded-xl border-r-4" style="border-color:${colors[id]}">
+                            <span class="text-[9px] font-black uppercase text-slate-500">${bankNames[id]}</span>
+                            <span class="font-black text-xs">${this.formatUSD(getBal(id))}</span>
+                        </div>`;
+                });
+            },
+
+            renderTable(data, rate) {
+                const container = document.getElementById('transactionList');
+                const startRange = document.getElementById('filterStart').value;
+                const endRange = document.getElementById('filterEnd').value;
+                
+                let list = [...data[this.currentCat]].sort((a,b) => b.id - a.id);
+
+                // Filtro por fecha
+                if (startRange && endRange) {
+                    list = list.filter(i => i.date >= startRange && i.date <= endRange);
+                }
+
+                // Paginación
+                const totalPages = Math.ceil(list.length / this.itemsPerPage) || 1;
+                const paginated = list.slice((this.currentPage - 1) * this.itemsPerPage, this.currentPage * this.itemsPerPage);
+
+                container.innerHTML = paginated.length ? '' : '<tr><td colspan="6" class="py-10 text-center text-slate-400 italic text-xs">Sin registros en este rango</td></tr>';
+                
+                paginated.forEach(i => {
+                    container.innerHTML += `
+                        <tr class="text-xs hover:bg-slate-50 transition-colors">
+                            <td class="px-4 py-3 text-slate-400 font-medium">${i.date}</td>
+                            <td class="px-4 py-3 uppercase font-black text-[9px] text-slate-400">${i.acc === 'none' ? '-' : i.acc}</td>
+                            <td class="px-4 py-3 font-semibold text-slate-700">${i.desc}</td>
+                            <td class="px-4 py-3 text-right font-black ${this.currentCat==='egresos'||this.currentCat==='pagar'?'text-rose-500':'text-emerald-600'}">${i.amount.toFixed(2)}</td>
+                            <td class="px-4 py-3 text-right text-slate-300 italic font-medium">${(i.amount * rate).toLocaleString('es-VE')}</td>
+                            <td class="px-4 py-3 text-right"><button onclick="app.deleteItem('${this.currentCat}', ${i.id})" class="text-slate-200 hover:text-rose-500 font-bold transition-colors">×</button></td>
+                        </tr>`;
+                });
+
+                document.getElementById('pageIndicator').innerText = `Página ${this.currentPage} de ${totalPages}`;
+                document.getElementById('prevPage').disabled = this.currentPage === 1;
+                document.getElementById('nextPage').disabled = this.currentPage === totalPages;
+            }
+        };
+
+        /**
+         * LÓGICA DE LA APLICACIÓN (CORE)
+         */
+        const app = {
+            state: DB.load(),
+            rate: parseFloat(localStorage.getItem(DB.rateKey)) || 45.0,
+
+            init() {
+                // Eventos de formulario
+                document.getElementById('financeForm').onsubmit = (e) => {
+                    e.preventDefault();
+                    this.addMovement();
+                };
+
+                // Eventos de Navegación Paginada
+                document.getElementById('prevPage').onclick = () => { UI.currentPage--; UI.renderTable(this.state, this.rate); };
+                document.getElementById('nextPage').onclick = () => { UI.currentPage++; UI.renderTable(this.state, this.rate); };
+
+                // Eventos de Filtros
+                document.getElementById('filterStart').onchange = () => UI.renderTable(this.state, this.rate);
+                document.getElementById('filterEnd').onchange = () => UI.renderTable(this.state, this.rate);
+
+                // Tabs
+                document.querySelectorAll('#tabGroup button').forEach(btn => {
+                    btn.onclick = (e) => {
+                        document.querySelectorAll('#tabGroup button').forEach(b => b.className = "flex-1 py-4 text-[9px] uppercase tracking-[0.2em] text-slate-400");
+                        e.target.className = "flex-1 py-4 text-[9px] uppercase tracking-[0.2em] tab-active";
+                        UI.currentCat = e.target.dataset.cat;
+                        UI.currentPage = 1;
+                        UI.renderTable(this.state, this.rate);
+                    };
+                });
+
+                // Import/Export
+                document.getElementById('btnExport').onclick = () => this.exportCSV();
+                document.getElementById('importFile').onchange = (e) => this.importCSV(e);
+                document.getElementById('exchangeRate').oninput = (e) => {
+                    this.rate = parseFloat(e.target.value) || 1;
+                    localStorage.setItem(DB.rateKey, this.rate);
+                    UI.renderAll(this.state, this.rate);
+                };
+
+                document.getElementById('inputDate').valueAsDate = new Date();
+                UI.renderAll(this.state, this.rate);
+            },
+
+            addMovement() {
+                try {
+                    const newEntry = {
+                        id: Date.now(),
+                        date: document.getElementById('inputDate').value,
+                        desc: DB.sanitize(document.getElementById('inputDesc').value),
+                        amount: parseFloat(document.getElementById('inputAmount').value),
+                        acc: (UI.currentCat === 'ingresos' || UI.currentCat === 'egresos') ? document.getElementById('inputAcc').value : 'none'
+                    };
+
+                    if (DB.isValid(newEntry)) {
+                        this.state[UI.currentCat].push(newEntry);
+                        DB.save(this.state);
+                        UI.notify("Movimiento guardado con éxito");
+                        document.getElementById('inputDesc').value = '';
+                        document.getElementById('inputAmount').value = '';
+                        UI.renderAll(this.state, this.rate);
+                    }
+                } catch (err) {
+                    UI.notify(err, "error");
+                }
+            },
+
+            deleteItem(cat, id) {
+                this.state[cat] = this.state[cat].filter(i => i.id !== id);
+                DB.save(this.state);
+                UI.renderAll(this.state, this.rate);
+                UI.notify("Registro eliminado", "error");
+            },
+
+            exportCSV() {
+                let rows = [['Tipo', 'Fecha', 'Cuenta', 'Concepto', 'USD']];
+                Object.keys(this.state).forEach(cat => {
+                    if(Array.isArray(this.state[cat]) && cat !== 'goals') {
+                        this.state[cat].forEach(i => rows.push([cat, i.date, i.acc, i.desc, i.amount]));
+                    }
+                });
+                let csvContent = "data:text/csv;charset=utf-8,\ufeff" + rows.map(e => e.join(",")).join("\n");
+                let link = document.createElement("a");
+                link.setAttribute("href", encodeURI(csvContent));
+                link.setAttribute("download", `Backup_V8_USD.csv`);
+                link.click();
+                UI.notify("Backup generado correctamente");
+            },
+
+            importCSV(e) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const lines = ev.target.result.split('\n').slice(1);
+                        const tempState = { ingresos: [], egresos: [], cobrar: [], pagar: [], goals: this.state.goals };
+                        lines.forEach(line => {
+                            const [cat, date, acc, desc, amount] = line.split(',').map(p => p?.trim());
+                            if(tempState[cat]) {
+                                tempState[cat].push({ id: Date.now() + Math.random(), date, acc, desc: DB.sanitize(desc), amount: parseFloat(amount) });
+                            }
+                        });
+                        this.state = tempState;
+                        DB.save(this.state);
+                        UI.renderAll(this.state, this.rate);
+                        UI.notify("Información restaurada con éxito");
+                    } catch (err) {
+                        UI.notify("Error al leer el archivo CSV", "error");
+                    }
+                };
+                reader.readAsText(e.target.files[0]);
+            }
+        };
+
+        // Iniciar App
+        app.init();
+
+        // SERVICE WORKER REGISTRATION (Para PWA)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                // navigator.serviceWorker.register('sw.js').then(...)
+                console.log("PWA Service Worker listo para registro.");
+            });
+        }
+    </script>
+</body>
+</html>
