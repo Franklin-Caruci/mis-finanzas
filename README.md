@@ -1,0 +1,1 @@
+El Control Financiero V8.0 es una aplicación web local diseñada para la gestión de flujos de caja en tiempo real. Utiliza tecnología de almacenamiento local (LocalStorage), lo que significa que tus datos se guardan en tu dispositivo y no en la nube, garantizando total privacidad. 
